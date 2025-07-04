@@ -100,7 +100,7 @@ struct QGDBCFill
                 dest(i,j,k,1) = dest(i,jlo,k,1);
                 dest(i,j,k,2) = dest(i,jlo,k,2);
                 dest(i,j,k,3) = dest(i,jlo,k,3);
-                dest(i,j,k,4) = 0;//dest(i,jlo,k,iuy);//-dest(i,jlo,k,iuy); //- if y from 0, not -15e-03
+                dest(i,j,k,4) = dest(i,jlo,k,iuy);//0;//dest(i,jlo,k,iuy);//-dest(i,jlo,k,iuy); //- if y from 0, not -15e-03
                 dest(i,j,k,5) = dest(i,jlo,k,5);
                 dest(i,j,k,6) = dest(i,jlo,k,6);
                 dest(i,j,k,7) = dest(i,jlo,k,7);
@@ -132,7 +132,7 @@ struct QGDBCFill
                 dest(i,j,k,1) = dest(ilo,jlo,k,1);
                 dest(i,j,k,2) = dest(ilo,jlo,k,2);
                 dest(i,j,k,3) = dest(ilo,jlo,k,3);
-                dest(i,j,k,4) = 0;//dest(ilo,jlo,k,4);
+                dest(i,j,k,4) = dest(ilo,jlo,k,4);//0;//dest(ilo,jlo,k,4);
                 dest(i,j,k,5) = dest(ilo,jlo,k,5);
                 dest(i,j,k,6) = dest(ilo,jlo,k,6);
                 dest(i,j,k,7) = dest(ilo,jlo,k,7);
@@ -147,7 +147,7 @@ struct QGDBCFill
                 dest(i,j,k,1) = dest(ilo,jhi,k,1);
                 dest(i,j,k,2) = dest(ilo,jhi,k,2);
                 dest(i,j,k,3) = dest(ilo,jhi,k,3);
-                dest(i,j,k,4) = 0;//dest(ilo,jhi,k,4);
+                dest(i,j,k,4) = dest(ilo,jhi,k,4);//0;//dest(ilo,jhi,k,4);
                 dest(i,j,k,5) = dest(ilo,jhi,k,5);
                 dest(i,j,k,6) = dest(ilo,jhi,k,6);
                 dest(i,j,k,7) = dest(ilo,jhi,k,7);
@@ -163,7 +163,7 @@ struct QGDBCFill
                 dest(i,j,k,1) = dest(ihi,jlo,k,1);
                 dest(i,j,k,2) = dest(ihi,jlo,k,2);
                 dest(i,j,k,3) = dest(ihi,jlo,k,3);
-                dest(i,j,k,4) = 0;//dest(ihi,jlo,k,4);
+                dest(i,j,k,4) = dest(ihi,jlo,k,4);//0;//dest(ihi,jlo,k,4);
                 dest(i,j,k,5) = dest(ihi,jlo,k,5);
                 dest(i,j,k,6) = dest(ihi,jlo,k,6);
                 dest(i,j,k,7) = dest(ihi,jlo,k,7);
@@ -178,7 +178,7 @@ struct QGDBCFill
                 dest(i,j,k,1) = dest(ihi,jhi,k,1);
                 dest(i,j,k,2) = dest(ihi,jhi,k,2);
                 dest(i,j,k,3) = dest(ihi,jhi,k,3);
-                dest(i,j,k,4) = 0;//dest(ihi,jhi,k,4);
+                dest(i,j,k,4) = dest(ihi,jhi,k,4);//0;//dest(ihi,jhi,k,4);
                 dest(i,j,k,5) = dest(ihi,jhi,k,5);
                 dest(i,j,k,6) = dest(ihi,jhi,k,6);
                 dest(i,j,k,7) = dest(ihi,jhi,k,7);
