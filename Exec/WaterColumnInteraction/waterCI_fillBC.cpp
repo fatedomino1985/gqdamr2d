@@ -20,42 +20,43 @@ struct QGDBCFill
             const int ihi = geom.Domain().bigEnd(0);
             const int jlo = geom.Domain().smallEnd(1);
             const int jhi = geom.Domain().bigEnd(1);
-            const auto problo = geom.ProbLo();//data();
+            //const auto problo = geom.ProbLo();//data();
             const auto [i,j,k] = iv.dim3();
 
-           // const auto problo = data1.ProbLo();
-            const auto dx = geom.CellSize();
+            // const auto problo = data1.ProbLo();
+            //const auto dx = geom.CellSize();
 			
 			
 			int ir = 0, ira = 1, irb = 2, 
 			iux = 3, iuy = 4,
-			ip = 6-1, iE = 7-1, iE_in = 8-1, iE_in0 = 9-1,
-			iT = 10-1, 
-			iCs = 11-1,
-			iVa = 12-1, iVb = 13-1;
+			ip = 5, //iE = 6, 
+			iE_in = 7, iE_in0 = 8,
+			iT = 9, 
+			iCs = 10,
+			iVa = 11, iVb = 12;
 			//{
 				//%%3.5 Shock/Water-Column interaction [3]Китамура
-				double Runiv = AmrQGD::Runiv;
+				//double Runiv = AmrQGD::Runiv;
 				double gma = AmrQGD::gamma_a, gmb = AmrQGD::gamma_b;
 			
 				double Ra = AmrQGD::RGas_a;
 				double Rb = AmrQGD::RGas_b;
 				double cva = Ra / (gma - 1); // 717.5 Air
 				double cvb = Rb / (gmb - 1); // 1495 Water
-				double pL = AmrQGD::pL,
-				pR = AmrQGD::pR;
+				//double pL = AmrQGD::pL;
+				double pR = AmrQGD::pR;
 				double pa_inf = AmrQGD::painf,
 				pb_inf = AmrQGD::pbinf;
-				double T1 = AmrQGD::T1,
-				T2 = AmrQGD::T2;
+				double T1 = AmrQGD::T1;
+				//double T2 = AmrQGD::T2;
 				double u1x = AmrQGD::u1x,
-				u2x = AmrQGD::u2x,
-				u1y = AmrQGD::u1y,
-				u2y = AmrQGD::u2y;
-				double E_in01 = AmrQGD::E_in01, E_in02 = AmrQGD::E_in02;//0.0; //y_1 = 0; *y_2 = 0.0;
+				//u2x = AmrQGD::u2x,
+				u1y = AmrQGD::u1y;
+				//double u2y = AmrQGD::u2y;
+				//double E_in01 = AmrQGD::E_in01, E_in02 = AmrQGD::E_in02;//0.0; //y_1 = 0; *y_2 = 0.0;
 				double esp = AmrQGD::esp;
-				double x_bub = AmrQGD::x_bub;
-				double r_bub = AmrQGD::r_bub;
+				//double x_bub = AmrQGD::x_bub;
+				//double r_bub = AmrQGD::r_bub;
 			//}
 			
             //surfaces

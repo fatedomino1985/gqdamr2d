@@ -93,7 +93,6 @@ void AmrQGD::initData ()
 		if (typeCs == 1) {
 			// typeCs = 1 - according to Zlotnik's seminar, it is more correct
 			// [new2].(33)
-			double testCs1, testCs2;
 			
 			double ro = snew[bi](i,j,k,ir);
 			double roa = snew[bi](i,j,k,ira); double rob = snew[bi](i,j,k,irb);

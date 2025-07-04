@@ -1,4 +1,5 @@
-DEBUG = FALSE
+DEBUG = TRUE
+#DEBUG = FALSE
 
 DIM = 2
 

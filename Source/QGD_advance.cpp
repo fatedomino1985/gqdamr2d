@@ -3,7 +3,7 @@
 
 using namespace amrex;
 
-Real AmrQGD::advance (Real time, Real dt, int iteration, int ncycle)
+Real AmrQGD::advance (Real time, Real dt, int /*iteration*/, int /*ncycle*/)
 {
     // At the beginning of step, we make the new data from previous step the
     // old data of this step.
@@ -19,18 +19,23 @@ Real AmrQGD::advance (Real time, Real dt, int iteration, int ncycle)
 	auto hx_i = dx[0]; 
 	auto hy_j = dx[1]; 
 
-    MultiFab& S_new = state[0].newData();
-	auto const& VNew = S_new.arrays();
-    //-auto const VNew = S_new.arrays();//auto const& VNew = S_new.arrays();
-    MultiFab& S_old = state[0].oldData();
-    FillPatcherFill(S_old, 0, ncomp, nghost, time, State_Type, 0);
+	MultiFab& S_new = state[0].newData();// Reference to existing MultiFab
+	auto const& VNew2 = S_new.arrays();//our real VNew
+	//-auto VNew = VNew2;//fake. because +1 XY,Z
+	
+	// Create a new MultiFab with the same structure (box array, distribution, components, ghost cells)
+	MultiFab S_copy(S_new.boxArray(), S_new.DistributionMap(),
+                S_new.nComp(), S_new.nGrow());
+	// Initialize S_copy with zeros
+	S_copy.setVal(0.0);
+	
+	auto const& VNew = S_copy.arrays();//fake, zeros
+	
+	MultiFab& S_old = state[0].oldData();
+	FillPatcherFill(S_old, 0, ncomp, nghost, time, State_Type, 0);
+	
+	auto const& VOld = S_old.arrays();
 
-//-auto const& VNew2 = S_new.arrays();
-
-    auto const& VOld = S_old.arrays();
-	//{
-	//S_old.FillBoundary(Geom().periodicity());	
-	//}
 	double maxCs = 0.;
 	
 	int ir = 0, ira = 1, irb = 2, 
@@ -62,125 +67,19 @@ Real AmrQGD::advance (Real time, Real dt, int iteration, int ncycle)
 	
 	double pa_inf = painf, pb_inf = pbinf;
 	
-	//{
-		int nc1_x, nc1_y;//, nc1_z;
+
+		int nc1_x, nc1_y, nc1_z;
 		amrex::Box box = S_new.boxArray()[0];
-		nc1_x = box.length(0), nc1_y = box.length(1);//, nc1_z = box.length(2);
-		//amrex::Print() << "\n NumOfArrs nComp = " << S_new.nComp();
-		//amrex::Print() << "\n NumOfArrs ncomp = " << ncomp;
-		//amrex::Print() << "\n Nx = " << box.length(0);
-		//amrex::Print() << " Ny = " << box.length(1);
-		//amrex::Print() << " Nz = " << box.length(2) << "\n";
-		int nil = -1;
-		//nc_x = nc1_x, nc_y = nc1_y;//, nc_z = nc1_z;
-		//amrex::Print() << " nc1_x = " << nc1_x << "\n";//140
-		//nc1_x = nc1_x - 1, nc1_y = nc1_y - 1;
-		//nc1_x = nc1_x + 1, nc1_y = nc1_y + 1;//140->141
-		//nc1_x = 141, nc1_y = 81;
-		int nc_x = nc1_x-1, nc_y = nc1_y-1;//, nc_z = nc1_z-1;
-	//}
+		nc1_x = box.length(0), nc1_y = box.length(1), nc1_z = box.length(2);
+		int nc_x = nc1_x-1, nc_y = nc1_y-1, nc_z = nc1_z-1;
 	
-	//
-	amrex::ParallelFor(S_old, [=] AMREX_GPU_DEVICE (int bi, int i, int j, int k)
-	//amrex::ParallelFor(S_old, S_old.nGrowVect(), [=] AMREX_GPU_DEVICE (int bi, int i, int j, int k)
-	{
-		//if (i > nil && i <= nc_x && j > nil && j <= nc_y)
-		for (int ia=0; ia<ncomp; ia++){
-			VNew[bi](i,j,k,ia) = 0.0;
-		}
-	});
-	
-	//int bi = 0, k=0; // for for - wo ParallelFor
     //%% Time step
 	//% Calculation dt
 	if (typeCs == 1) {
 		// typeCs = 1 - according to Zlotnik's seminar, it is more correct
 		// [new2].(33)
-		
-		///for(int j = -1; j < 81; j++)
-		///for(int i = -1; i < 141; i++)
-		//
-		//amrex::ParallelFor(S_old, [=, &maxCs] AMREX_GPU_DEVICE (int bi, int i, int j, int k)
 		amrex::ParallelFor(S_old, S_old.nGrowVect(), 
 		[=, &maxCs] AMREX_GPU_DEVICE (int bi, int i, int j, int k)
-		{
-		//amrex::Print() << ", i= " << i << " j= " << j << " k= " << k << "\n";
-		/*
-		//??тут подумать - как и i и j -1
-		if(i==0){
-			i=-1;
-			{
-				double ro = VOld[bi](i,j,k,ir);
-				double roa = VOld[bi](i,j,k,ira); double rob = VOld[bi](i,j,k,irb);
-				double p = VOld[bi](i,j,k,ip);
-		
-				double adE_in = VOld[bi](i,j,k,iE_in) - VOld[bi](i,j,k,iE_in0);
-				double rm = VOld[bi](i,j,k,ir), rma = VOld[bi](i,j,k,ira), rmb = VOld[bi](i,j,k,irb); // It's rmaf
-				double cvm = (rma * cva + rmb * cvb) / rm;
-				double cpm = (rma * cpa + rmb * cpb) / rm;
-				double gam = cpm / cvm;
-				double sigma_a = Ra * roa / (cvm * ro);//% 2.(18)
-				double sigma_b = Rb * rob / (cvm * ro);
-				// p is p_+
-				double E1 = sigma_a * (ro * adE_in - pa_inf) / pow(p + pa_inf, 2.); 
-				E1 = E1 + sigma_b * (ro * adE_in - pb_inf) / pow(p + pb_inf, 2.); 
-				E1 = 1.0 / E1; 
-				E1 = sqrt(gam / ro * E1); 
-				double Cs = E1;
-				VNew[bi](i,j,k,iCs) = Cs;
-				if (isnan(VNew[bi](i,j,k,iCs)) || isinf(VNew[bi](i,j,k,iCs)) || VNew[bi](i,j,k,iCs) <= 0 )
-				{
-					VNew[bi](i,j,k,iCs) = 1.0 * pow(10, -8);
-					Cs = VNew[bi](i,j,k,iCs);
-					exit(EXIT_FAILURE);
-				}
-				if (Cs > maxCs) 
-				{
-					maxCs = Cs;
-				}
-			}
-			i=0;
-		}
-		if(j==0){
-			j=-1;
-			{
-				double ro = VOld[bi](i,j,k,ir);
-				double roa = VOld[bi](i,j,k,ira); double rob = VOld[bi](i,j,k,irb);
-				double p = VOld[bi](i,j,k,ip);
-		
-				double adE_in = VOld[bi](i,j,k,iE_in) - VOld[bi](i,j,k,iE_in0);
-				double rm = VOld[bi](i,j,k,ir), rma = VOld[bi](i,j,k,ira), rmb = VOld[bi](i,j,k,irb); // It's rmaf
-				double cvm = (rma * cva + rmb * cvb) / rm;
-				double cpm = (rma * cpa + rmb * cpb) / rm;
-				double gam = cpm / cvm;
-				double sigma_a = Ra * roa / (cvm * ro);//% 2.(18)
-				double sigma_b = Rb * rob / (cvm * ro);
-				// p is p_+
-				double E1 = sigma_a * (ro * adE_in - pa_inf) / pow(p + pa_inf, 2.); 
-				E1 = E1 + sigma_b * (ro * adE_in - pb_inf) / pow(p + pb_inf, 2.); 
-				E1 = 1.0 / E1; 
-				E1 = sqrt(gam / ro * E1); 
-				double Cs = E1;
-				VNew[bi](i,j,k,iCs) = Cs;
-				if (isnan(VNew[bi](i,j,k,iCs)) || isinf(VNew[bi](i,j,k,iCs)) || VNew[bi](i,j,k,iCs) <= 0 )
-				{
-					VNew[bi](i,j,k,iCs) = 1.0 * pow(10, -8);
-					Cs = VNew[bi](i,j,k,iCs);
-					exit(EXIT_FAILURE);
-				}
-				if (Cs > maxCs) 
-				{
-					maxCs = Cs;
-				}
-			}
-			j=0;
-		}
-		*/
-		
-		//if (i >= nil && i < nc1_x && j >= nil && j < nc1_y)
-		//
-		//if (i >= nil && i <= nc_x && j >= nil && j <= nc_y)//-1..139
-		//if (i >= nil && i <= nc1_x && j >= nil && j <= nc1_y)//-1..140 - good?
 		{
 			double ro = VOld[bi](i,j,k,ir);
 			double roa = VOld[bi](i,j,k,ira); double rob = VOld[bi](i,j,k,irb);
@@ -214,7 +113,7 @@ Real AmrQGD::advance (Real time, Real dt, int iteration, int ncycle)
 			{
 				maxCs = Cs;
 			}
-		}
+		
 		}//++
 		);
 	}
@@ -277,16 +176,16 @@ Real AmrQGD::advance (Real time, Real dt, int iteration, int ncycle)
     {
 		//if(k==0 && j==0) std::cout << "i = " << i << "\n";//140=> 0..139, but bnd -2,-1 and 140,141
 		
-		double xira, yira;//for test5
 
 		double rm, rma, rmb;
 		double cvm, cpm, gam;
 		//double sigma_a, sigma_b;
 		
 		double hx4, hy4;
-		double hxy; double hx, hy;
+		//double hxy; 
+		double hx, hy;
 
-		double pm, Em, E_inm;
+		double pm, Em;//, E_inm;
 		double cs, Tm;
 		double uxm, uym;
 		double tau, visc, cond;
@@ -304,115 +203,16 @@ Real AmrQGD::advance (Real time, Real dt, int iteration, int ncycle)
 		double Fuxx, Fuxy, Fuyx, Fuyy;
 		double E_in0m, droex, droey, drox, droy, qstx, qsty;
 		double FEx, FEy;
-		/*
-		double b, c, d;
-		double dts;*/
+		
+		//double b, c, d;
+		//double dts;
 		double h;
-		/*double adE_in;*/
+		//double adE_in;
 		
 		
 		//%%  X fluxes
-		//if(1==0)
-		//if (j > nil && j < nc_y && i < nc_x)
-		///	for(int j = -1+1; j < 81-1; j++)
-		///	for(int i = -1; i < 141-1; i++)
-		/*if(i==0){
-			i=-1;
-			{
-			hy4 = 4*dx[1];
-			rm = (VOld[bi](i,j,k,ir) + VOld[bi](i+1,j,k,ir)) * 0.5;
-			// upwind
-			rma = (VOld[bi](i,j,k,ira) + VOld[bi](i+1,j,k,ira)) * 0.5; rmb = (VOld[bi](i,j,k,irb) + VOld[bi](i+1,j,k,irb)) * 0.5;
-			// end upwind
-			uxm = (VOld[bi](i,j,k,iux) + VOld[bi](i+1,j,k,iux)) * 0.5; uym = (VOld[bi](i,j,k,iuy) + VOld[bi](i+1,j,k,iuy)) * 0.5;
-			pm = (VOld[bi](i,j,k,ip) + VOld[bi](i+1,j,k,ip)) * 0.5;
-			Em = (VOld[bi](i,j,k,iE) + VOld[bi](i+1,j,k,iE)) * 0.5;
-
-			cvm = (rma * cva + rmb * cvb) / rm; cpm = (rma * cpa + rmb * cpb) / rm;
-			gam = cpm / cvm;
-
-			cs = (VNew[bi](i,j,k,iCs) + VNew[bi](i+1,j,k,iCs)) * 0.5;
-
-			Tm = (VOld[bi](i,j,k,iT) + VOld[bi](i+1,j,k,iT)) * 0.5;
-
-			h = sqrt(hx_i * hy_j);
-			tau = alpha * h / (cs + i_t * amrex::Math::abs(pow(uxm, 2) + pow(uym, 2)));
-			visc = tau * pm * Sc;// nu[2](78) or [1].(20)
-			cond = tau * cpm * pm / Pr;// Злотник(78) (у него обратный)
-			//cond = visc/(Pr*(gam-1));
-
-			dpx = (VOld[bi](i+1,j,k,ip) - VOld[bi](i,j,k,ip)) / hx_i;
-			dpy = (VOld[bi](i+1,j+1,k,ip) + VOld[bi](i,j+1,k,ip) - VOld[bi](i+1,j-1,k,ip) - VOld[bi](i,j-1,k,ip)) / hy4;
-						
-			duxx = (VOld[bi](i+1,j,k,iux) - VOld[bi](i,j,k,iux)) / hx_i;
-			duxy = (VOld[bi](i+1,j+1,k,iux) + VOld[bi](i,j+1,k,iux) - VOld[bi](i+1,j-1,k,iux) - VOld[bi](i,j-1,k,iux)) / hy4;
-
-			duyx = (VOld[bi](i+1,j,k,iuy) - VOld[bi](i,j,k,iuy)) / hx_i;
-			duyy = (VOld[bi](i+1,j+1,k,iuy) + VOld[bi](i,j+1,k,iuy) - VOld[bi](i+1,j-1,k,iuy) - VOld[bi](i,j-1,k,iuy)) / hy4;
-
-			hWx1 = tau * (rm * (uxm * duxx + uym * duxy) + dpx - rm * Fx);
-			hWy1 = tau * (rm * (uxm * duyx + uym * duyy) + dpy - rm * Fy);
-
-			hwx = hWx1 / rm;
-
-			droauxx = (VOld[bi](i+1,j,k,ira) * VOld[bi](i+1,j,k,iux) - VOld[bi](i,j,k,ira) * VOld[bi](i,j,k,iux)) / hx_i;
-			droauyy = (VOld[bi](i+1,j+1,k,ira) * VOld[bi](i+1,j+1,k,iuy) + VOld[bi](i,j+1,k,ira) * VOld[bi](i,j+1,k,iuy) - VOld[bi](i+1,j-1,k,ira) * VOld[bi](i+1,j-1,k,iuy) - VOld[bi](i,j-1,k,ira) * VOld[bi](i,j-1,k,iuy)) / hy4;
-
-			drobuxx = (VOld[bi](i+1,j,k,irb) * VOld[bi](i+1,j,k,iux) - VOld[bi](i,j,k,irb) * VOld[bi](i,j,k,iux)) / hx_i;
-			drobuyy = (VOld[bi](i+1,j+1,k,irb) * VOld[bi](i+1,j+1,k,iuy) + VOld[bi](i,j+1,k,irb) * VOld[bi](i,j+1,k,iuy) - VOld[bi](i+1,j-1,k,irb) * VOld[bi](i+1,j-1,k,iuy) - VOld[bi](i,j-1,k,irb) * VOld[bi](i,j-1,k,iuy)) / hy4;
-
-			Wxa2 = tau * (droauxx + droauyy) * uxm + rma * hwx;
-			Wxb2 = tau * (drobuxx + drobuyy) * uxm + rmb * hwx;
-
-			Froax = rma * uxm - Wxa2; Frobx = rmb * uxm - Wxb2; Frox = Froax + Frobx;
-
-			divu = duxx + duyy;
-			Ptau = tau * ((uxm * dpx + uym * dpy) + rm * pow(cs, 2) * divu - pow(cs, 2) / (gam * cvm * Tm) * Q);//[new2].(51)
-
-			PNSxx = 2.0 * visc * duxx - 2.0 / 3.0 * visc * divu;
-			PNSyx = visc * (duyx + duxy) + 0.0; 
-
-			Pxx = PNSxx + uxm * hWx1 + Ptau;
-			Pxy = PNSyx + uxm * hWy1;
-
-			Fuxx = pm + uxm * Frox - Pxx;
-			Fuyx = uym * Frox - Pxy;
-
-			dTx = (VOld[bi](i+1,j,k,iT) - VOld[bi](i,j,k,iT)) / hx_i;
-
-			E_in0m = (VOld[bi](i,j,k,iE_in0) + VOld[bi](i+1,j,k,iE_in0)) * 0.5;
-			droex = (VOld[bi](i+1,j,k,ir) * VOld[bi](i+1,j,k,iE_in) - VOld[bi](i,j,k,ir) * VOld[bi](i,j,k,iE_in)) / hx_i;
-			droey = (VOld[bi](i+1,j+1,k,ir) * VOld[bi](i+1,j+1,k,iE_in) + VOld[bi](i,j+1,k,ir) * VOld[bi](i,j+1,k,iE_in) - VOld[bi](i+1,j-1,k,ir) * VOld[bi](i+1,j-1,k,iE_in) - VOld[bi](i,j-1,k,ir) * VOld[bi](i,j-1,k,iE_in)) / hy4;
-
-			drox = (VOld[bi](i+1,j,k,ir) - VOld[bi](i,j,k,ir)) / hx_i;
-			droy = (VOld[bi](i+1,j+1,k,ir) + VOld[bi](i,j+1,k,ir) - VOld[bi](i+1,j-1,k,ir) - VOld[bi](i,j-1,k,ir)) / hy4;
-
-			qstx = tau * uxm * (uxm * (droex - (gam * cvm * Tm + E_in0m) * drox) +
-				uym * (droey - (gam * cvm * Tm + E_in0m) * droy) -
-				Q);
-
-			FEx = (Em + pm) * Frox / rm - cond * dTx - qstx - (Pxx * uxm + Pxy * uym);
-
-			hy = hy_j;
-
-			VNew[bi](i,j,k,ira) = VNew[bi](i,j,k,ira) - Froax * hy; 
-			xira = VNew[bi](i,j,k,ira); 
-			
-			VNew[bi](i+1,j,k,ira) = VNew[bi](i+1,j,k,ira) + Froax * hy;
-			VNew[bi](i,j,k,irb) = VNew[bi](i,j,k,irb) - Frobx * hy;
-			VNew[bi](i+1,j,k,irb) = VNew[bi](i+1,j,k,irb) + Frobx * hy;
-			VNew[bi](i,j,k,iux) = VNew[bi](i,j,k,iux) - Fuxx * hy;
-			VNew[bi](i+1,j,k,iux) = VNew[bi](i+1,j,k,iux) + Fuxx * hy;
-			VNew[bi](i,j,k,iuy) = VNew[bi](i,j,k,iuy) - Fuyx * hy;
-			VNew[bi](i+1,j,k,iuy) = VNew[bi](i+1,j,k,iuy) + Fuyx * hy;
-			VNew[bi](i,j,k,iE) = VNew[bi](i,j,k,iE) - FEx * hy;
-			VNew[bi](i+1,j,k,iE) = VNew[bi](i+1,j,k,iE) + FEx * hy;
-			}
-			i=0;
-		}*/
-		//if (i >= nil && i < nc_x && j > nil && j < nc_y)
-		//if (i >= nil && i < nc1_x && j > nil && j < nc1_y)//
-		//if (i >= nil && i <= nc_x && j > nil && j <= nc_y)//i=-1..139;j=0..139
+		//if (i > -1 && j > -2 && k > -1)
+		if ((i > -1 && j > -2 && k > -1) && (i < nc_x && j < nc_y && k < nc_z))
 		{
 			hy4 = 4*dx[1];//hy[j + 1] + 2.0 * hy_j + hy[j - 1]; //% 4 * hy_j;
 		
@@ -429,12 +229,6 @@ Real AmrQGD::advance (Real time, Real dt, int iteration, int ncycle)
 
 			//++
 			cs = (VNew[bi](i,j,k,iCs) + VNew[bi](i+1,j,k,iCs)) * 0.5;
-			//-cs = (VOld[bi](i,j,k,iCs) + VOld[bi](i+1,j,k,iCs)) * 0.5;
-			//-cs = VNew[bi](i,j,k,iCs);//test5
-			/*if(k==0) //int(time/dt) == 1
-			amrex::Print() << ", i= " << i << " j= " << j << " k= " << k
-				<< " vk-1 = "<< VNew[bi](i+1,j,k,iCs) << " vk0 = "<< VNew[bi](i,j,k,iCs) << " \n";
-			*/
 			Tm = (VOld[bi](i,j,k,iT) + VOld[bi](i+1,j,k,iT)) * 0.5;
 
 			h = sqrt(hx_i * hy_j);
@@ -500,8 +294,6 @@ Real AmrQGD::advance (Real time, Real dt, int iteration, int ncycle)
 			hy = hy_j;
 
 			VNew[bi](i,j,k,ira) = VNew[bi](i,j,k,ira) - Froax * hy; 
-			xira = VNew[bi](i,j,k,ira); 
-			
 			VNew[bi](i+1,j,k,ira) = VNew[bi](i+1,j,k,ira) + Froax * hy;
 			VNew[bi](i,j,k,irb) = VNew[bi](i,j,k,irb) - Frobx * hy;
 			VNew[bi](i+1,j,k,irb) = VNew[bi](i+1,j,k,irb) + Frobx * hy;
@@ -513,108 +305,8 @@ Real AmrQGD::advance (Real time, Real dt, int iteration, int ncycle)
 			VNew[bi](i+1,j,k,iE) = VNew[bi](i+1,j,k,iE) + FEx * hy;
 		}
 		//%%  Y fluxes
-		//if(1==0)
-		//if (i > nil && i < nc_x && j < nc_y)
-		///for(int j = -1; j < 81-1; j++)
-		///for(int i = -1+1; i < 141-1; i++)
-		/*
-		if(j==0){
-			j=-1;
-			{
-			hx4 = 4*dx[0];//hx[i + 1] + 2.0 * hx_i + hx[i - 1];
-			
-			rm = (VOld[bi](i,j,k,ir) + VOld[bi](i,j+1,k,ir)) * 0.5;
-			// upwind
-			rma = (VOld[bi](i,j,k,ira) + VOld[bi](i,j+1,k,ira)) * 0.5; rmb = (VOld[bi](i,j,k,irb) + VOld[bi](i,j+1,k,irb)) * 0.5;
-			// end upwind
-			uxm = (VOld[bi](i,j,k,iux) + VOld[bi](i,j+1,k,iux)) * 0.5; uym = (VOld[bi](i,j,k,iuy) + VOld[bi](i,j+1,k,iuy)) * 0.5; 
-			pm = (VOld[bi](i,j,k,ip) + VOld[bi](i,j+1,k,ip)) * 0.5;
-			Em = (VOld[bi](i,j,k,iE) + VOld[bi](i,j+1,k,iE)) * 0.5;
-
-			cvm = (rma * cva + rmb * cvb) / rm; cpm = (rma * cpa + rmb * cpb) / rm;
-			gam = cpm / cvm;
-
-			//++
-			cs = (VNew[bi](i,j,k,iCs) + VNew[bi](i,j+1,k,iCs)) * 0.5;
-			
-			Tm = (VOld[bi](i,j,k,iT) + VOld[bi](i,j+1,k,iT)) * 0.5;
-
-			h = sqrt(hx_i * hy_j);
-			tau = alpha * h / (cs + i_t * amrex::Math::abs(pow(uxm, 2) + pow(uym, 2)));
-			//tau= 1e-11;//test5
-			visc = tau * pm * Sc; // nu[2](78) or [1](20)
-			cond = tau * cpm * pm / Pr; // Злотник(78)
-			// cond = visc / (Pr * (gam - 1));
-
-			dpx = (VOld[bi](i+1,j+1,k,ip) + VOld[bi](i+1,j,k,ip) - VOld[bi](i-1,j+1,k,ip) - VOld[bi](i-1,j,k,ip)) / hx4;
-			dpy = (VOld[bi](i,j+1,k,ip) - VOld[bi](i,j,k,ip)) / hy_j;
-
-			duxx = (VOld[bi](i+1,j+1,k,iux) + VOld[bi](i+1,j,k,iux) - VOld[bi](i-1,j+1,k,iux) - VOld[bi](i-1,j,k,iux)) / hx4;
-			duxy = (VOld[bi](i,j+1,k,iux) - VOld[bi](i,j,k,iux)) / hy_j;
-
-			duyx = (VOld[bi](i+1,j+1,k,iuy) + VOld[bi](i+1,j,k,iuy) - VOld[bi](i-1,j+1,k,iuy) - VOld[bi](i-1,j,k,iuy)) / hx4;
-			duyy = (VOld[bi](i,j+1,k,iuy) - VOld[bi](i,j,k,iuy)) / hy_j;
-
-			hWx1 = tau * (rm * (uxm * duxx + uym * duxy) + dpx - rm * Fx);
-			hWy1 = tau * (rm * (uxm * duyx + uym * duyy) + dpy - rm * Fy);
-
-			hwy = hWy1 / rm;
-
-			droauxx = (VOld[bi](i+1,j+1,k,ira) * VOld[bi](i+1,j+1,k,iux) + VOld[bi](i+1,j,k,ira) * VOld[bi](i+1,j,k,iux) - VOld[bi](i-1,j+1,k,ira) * VOld[bi](i-1,j+1,k,iux) - VOld[bi](i-1,j,k,ira) * VOld[bi](i-1,j,k,iux)) / hx4;
-			droauyy = (VOld[bi](i,j+1,k,ira) * VOld[bi](i,j+1,k,iuy) - VOld[bi](i,j,k,ira) * VOld[bi](i,j,k,iuy)) / hy_j;
-
-			drobuxx = (VOld[bi](i+1,j+1,k,irb) * VOld[bi](i+1,j+1,k,iux) + VOld[bi](i+1,j,k,irb) * VOld[bi](i+1,j,k,iux) - VOld[bi](i-1,j+1,k,irb) * VOld[bi](i-1,j+1,k,iux) - VOld[bi](i-1,j,k,irb) * VOld[bi](i-1,j,k,iux)) / hx4;
-			drobuyy = (VOld[bi](i,j+1,k,irb) * VOld[bi](i,j+1,k,iuy) - VOld[bi](i,j,k,irb) * VOld[bi](i,j,k,iuy)) / hy_j;
-
-			Wya2 = tau * (droauxx + droauyy) * uym + rma * hwy;
-			Wyb2 = tau * (drobuxx + drobuyy) * uym + rmb * hwy;
-
-			Froay = rma * uym - Wya2; Froby = rmb * uym - Wyb2; Froy = Froay + Froby;
-
-			divu = duxx + duyy;
-			Ptau = tau * ((uxm * dpx + uym * dpy) + rm * pow(cs, 2) * divu - pow(cs, 2) / (gam * cvm * Tm) * Q);
-
-			PNSxy = visc * (duxy + duyx) + 0; 
-			PNSyy = 2.0 * visc * duyy - 2.0 / 3.0 * visc * divu;  
-
-			Pyx = PNSxy + uym * hWx1; 
-			Pyy = PNSyy + uym * hWy1 + Ptau; 
-
-			Fuxy = uxm * Froy - Pyx; Fuyy = pm + uym * Froy - Pyy;
-
-			dTy = (VOld[bi](i,j+1,k,iT) - VOld[bi](i,j,k,iT)) / hy_j;
-			E_in0m = (VOld[bi](i,j,k,iE_in0) + VOld[bi](i,j+1,k,iE_in0)) * 0.5;
-			droex = (VOld[bi](i+1,j+1,k,ir) * VOld[bi](i+1,j+1,k,iE_in) + VOld[bi](i+1,j,k,ir) * VOld[bi](i+1,j,k,iE_in) - VOld[bi](i-1,j+1,k,ir) * VOld[bi](i-1,j+1,k,iE_in) - VOld[bi](i-1,j,k,ir) * VOld[bi](i-1,j,k,iE_in)) / hx4;
-			droey = (VOld[bi](i,j+1,k,ir) * VOld[bi](i,j+1,k,iE_in) - VOld[bi](i,j,k,ir) * VOld[bi](i,j,k,iE_in)) / hy_j;
-
-			drox = (VOld[bi](i+1,j+1,k,ir) + VOld[bi](i+1,j,k,ir) - VOld[bi](i-1,j+1,k,ir) - VOld[bi](i-1,j,k,ir)) / hx4;
-			droy = (VOld[bi](i,j+1,k,ir) - VOld[bi](i,j,k,ir)) / hy_j;
-
-			qsty = tau * uym * (uxm * (droex - (gam * cvm * Tm + E_in0m) * drox) +
-				uym * (droey - (gam * cvm * Tm + E_in0m) * droy) -
-				Q);
-
-			FEy = (Em + pm) * Froy / rm - cond * dTy - qsty - (Pyx * uxm + Pyy * uym);
-
-			hx = hx_i;
-
-			VNew[bi](i,j,k,ira) = VNew[bi](i,j,k,ira) - Froay * hx; 
-			
-			VNew[bi](i,j+1,k,ira) = VNew[bi](i,j+1,k,ira) + Froay * hx;
-			VNew[bi](i,j,k,irb) = VNew[bi](i,j,k,irb) - Froby * hx;
-			VNew[bi](i,j+1,k,irb) = VNew[bi](i,j+1,k,irb) + Froby * hx;
-			VNew[bi](i,j,k,iux) = VNew[bi](i,j,k,iux) - Fuxy * hx;
-			VNew[bi](i,j+1,k,iux) = VNew[bi](i,j+1,k,iux) + Fuxy * hx;
-			VNew[bi](i,j,k,iuy) = VNew[bi](i,j,k,iuy) - Fuyy * hx;
-			VNew[bi](i,j+1,k,iuy) = VNew[bi](i,j+1,k,iuy) + Fuyy * hx;
-			VNew[bi](i,j,k,iE) = VNew[bi](i,j,k,iE) - FEy * hx;
-			VNew[bi](i,j+1,k,iE) = VNew[bi](i,j+1,k,iE) + FEy * hx;
-			}
-			j=0;
-		}*/
-		//if (i > nil && i < nc_x && j >= nil && j < nc_y)
-		//if (i > nil && i < nc1_x && j >= nil && j < nc1_y)
-		//if (i > nil && i <= nc_x && j >= nil && j <= nc_y)//i=0..139;j=-1,0..139
+		//if (i > -1 && j > -1 && k > -1)
+		if ((i > -1 && j > -2 && k > -1) && (i < nc_x && j < nc_y && k < nc_z))
 		{
 			hx4 = 4*dx[0];//hx[i + 1] + 2.0 * hx_i + hx[i - 1];
 			
@@ -629,16 +321,11 @@ Real AmrQGD::advance (Real time, Real dt, int iteration, int ncycle)
 			cvm = (rma * cva + rmb * cvb) / rm; cpm = (rma * cpa + rmb * cpb) / rm;
 			gam = cpm / cvm;
 
-			//++
 			cs = (VNew[bi](i,j,k,iCs) + VNew[bi](i,j+1,k,iCs)) * 0.5;
-			//-cs = (VOld[bi](i,j,k,iCs) + VOld[bi](i,j+1,k,iCs)) * 0.5;
-			//-cs = VNew[bi](i,j,k,iCs);//test5
-			
 			Tm = (VOld[bi](i,j,k,iT) + VOld[bi](i,j+1,k,iT)) * 0.5;
 
 			h = sqrt(hx_i * hy_j);
 			tau = alpha * h / (cs + i_t * amrex::Math::abs(pow(uxm, 2) + pow(uym, 2)));
-			//tau= 1e-11;//test5
 			visc = tau * pm * Sc; // nu[2](78) or [1](20)
 			cond = tau * cpm * pm / Pr; // Злотник(78)
 			// cond = visc / (Pr * (gam - 1));
@@ -709,15 +396,10 @@ Real AmrQGD::advance (Real time, Real dt, int iteration, int ncycle)
 		}
 		
 		// New variables. Saved
-		//+++
 		VNew[bi](i,j,k,iE_in0) = VOld[bi](i,j,k,iE_in0);
-		
-		//VNew2[bi](i,j,k,iE_in0) = VNew[bi](i,j,k,iE_in0);
 		});
 		amrex::ParallelFor(S_old, [=] AMREX_GPU_DEVICE (int bi, int i, int j, int k){
 		// New variables
-		
-		double xira=-1, yira=-1;
 		
 		double sigma_a, sigma_b;
 		
@@ -725,19 +407,14 @@ Real AmrQGD::advance (Real time, Real dt, int iteration, int ncycle)
 		
 		double b, c, d;
 		double dts;
-		double h;
+		//double h;
 		double adE_in;
 		
 		dts = dt / (hx_i * hy_j);
-		h = 1.0/2. * (hx_i + hy_j);
+		//h = 1.0/2. * (hx_i + hy_j);
 		
-		///for(int j = -1+1; j < 81-1; j++)
-		///for(int i = -1+1; i < 141-1; i++)
-		//if (i > nil && i < nc_x && j > nil && j < nc_y)
-		//if (i > nil && i < nc1_x && j > nil && j < nc1_y)
-		//if (i > nil && i <= nc_x && j > nil && j <= nc_y)//0..139
+		//if (i > nil && i <= nc_x && j > nil && j <= nc_y && k > nil && k <= nc_z)
 		{
-			//VNew[bi](i,j,k,iE_in0) = VOld[bi](i,j,k,iE_in0);//i j for for wo para
 		
 		
 			VNew[bi](i,j,k,ira) = VNew[bi](i,j,k,ira) * dts + VOld[bi](i,j,k,ira); VNew[bi](i,j,k,irb) = VNew[bi](i,j,k,irb) * dts + VOld[bi](i,j,k,irb);
@@ -754,10 +431,6 @@ Real AmrQGD::advance (Real time, Real dt, int iteration, int ncycle)
 			VNew[bi](i,j,k,ir) = VNew[bi](i,j,k,ira) + VNew[bi](i,j,k,irb);
 			VNew[bi](i,j,k,iux) = VNew[bi](i,j,k,iux) / VNew[bi](i,j,k,ir); 
 			VNew[bi](i,j,k,iuy) = VNew[bi](i,j,k,iuy) / VNew[bi](i,j,k,ir);
-			//VNew[bi](i,j,k,iuy) = VOld[bi](i,-1,k,iuy);//VOld[bi](i,80,k,iuy);
-			
-			//amrex::Print() << ", iuy(j=-1)= " << VOld[bi](i,-1,k,iuy) << " \n";
-			//amrex::Print() << ", iuy(j=80)= " << VOld[bi](i,80,k,iuy) << " \n";
 			
 			VNew[bi](i,j,k,iE_in) = (VNew[bi](i,j,k,iE) - 0.5 * VNew[bi](i,j,k,ir) * (VNew[bi](i,j,k,iux) * VNew[bi](i,j,k,iux) + VNew[bi](i,j,k,iuy) * VNew[bi](i,j,k,iuy))) / VNew[bi](i,j,k,ir);
 			adE_in = VNew[bi](i,j,k,iE_in) - VNew[bi](i,j,k,iE_in0);
@@ -787,8 +460,6 @@ Real AmrQGD::advance (Real time, Real dt, int iteration, int ncycle)
 					, VNew[bi](i,j,k,ir), VNew[bi](i,j,k,iE), VNew[bi](i,j,k,iE_in), VNew[bi](i,j,k,iux), VNew[bi](i,j,k,iuy));
 				double xbeg = -15*pow(10,-3);//A_3D
 				fprintf(stderr, "\nxy in (%le, %le)", xbeg+i*hx_i, j*hy_j);
-				fprintf(stderr, "\nold in newira=%le xira=%le yira=%le "
-					, VNew[bi](i,j,k,ira), xira, yira);
 				exit(EXIT_FAILURE);
 			}
 			
@@ -799,51 +470,15 @@ Real AmrQGD::advance (Real time, Real dt, int iteration, int ncycle)
 			
 			
 			
-				//for (int ia=0; ia<ncomp; ia++)
-					//VNew2[bi](i,j,k,ia) = VNew[bi](i,j,k,ia);
+			for (int ia=0; ia<ncomp; ia++)
+					VNew2[bi](i,j,k,ia) = VNew[bi](i,j,k,ia);
 		}
-		///
-		/*else
-		{
-			//if ((i <= nil || i > nc_x) && (j <= nil || j > nc_y))//i=-2,-1,140,141;j=-2,-1,140,141
-			//if ((i == nil || i == nc1_x) && (j == nil || j == nc1_y))//i=--1,140;j=-1,140
-			//if(i>-2 && j>-2)
-			//if (i > nil && i <= nc_x && j > nil && j <= nc_y)
-				//if(!((i >= -2 && i < -1) || (i >= nc_x && i < nc1_x)) && !((j >= -2 && j < -1) || (j >= nc_y && j < nc1_y)) )
-				//amrex::Print() << ", i= " << i << " j= " << j << " k= " << k << "\n";
-			//if((i!=-2 || i!= nc1_x) &&(j!=-2 || j!= nc1_y))
-			if (i >= nil && i <= nc1_x && j >= nil && j <= nc1_y)//only -1 and nc1=140, wo -2 and 141
-			//if(i<30)
-				///
-				for (int ia=0; ia<ncomp; ia++)
-					///
-					VNew[bi](i,j,k,ia) = VOld[bi](i,j,k,ia);
-		}*/
 		
     }//++
 	);
 	
-	/*++int k = 0;
-	int bi = 0;*/
-	/*++
-	int ia = 4;//initCS: 10, but 4 is still wrong (slightly j=0), maybe because ip=5;
-	//for(int ia=0; ia<ncomp; ia++)
-	{
-		amrex::Print() << "\nia = " << ia << ": \n";
-		for(int j = -1; j < 81; j++){//for(int j = -2; j < 81; j++){
-			amrex::Print() << "\nj = " << j << ": \n";
-			for(int i = -1; i < 141; i++){//+for(int i = -2; i < 141; i++){
-				//amrex::Print() << "i =" << i << " ";
-				amrex::Print() << "" << VOld[bi](i,j,k,ia) << "; ";//VOld[bi](i,j,k,iuy) << "; ";
-			}
-		}
 	
-	}
-	amrex::Print() << " \n";amrex::Print() << " \n";amrex::Print() << " \n";
-	int step = int(time/dt);
-	if ( step == 1)//5)
-		exit(EXIT_FAILURE);
-	*/
+	
 	//exit(EXIT_FAILURE);
 	/*
     Real maxval = S_new.max(0);

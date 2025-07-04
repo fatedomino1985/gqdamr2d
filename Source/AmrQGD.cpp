@@ -156,8 +156,8 @@ void
 AmrQGD::computeNewDt (int finest_level, int sub_cycle,
                             Vector<int>& n_cycle,
                             const Vector<IntVect>& ref_ratio,
-                            Vector<Real>& dt_min, Vector<Real>& dt_level,
-                            Real stop_time, int post_regrid_flag)
+                            Vector<Real>& /*dt_min*/, Vector<Real>& dt_level,
+                            Real stop_time, int /*post_regrid_flag*/)
 {
     // For this code we can just call computeInitialDt.
     computeInitialDt(finest_level, sub_cycle, n_cycle, ref_ratio, dt_level, stop_time);
@@ -226,8 +226,8 @@ void
 AmrQGD::errorEst (TagBoxArray& tags, int clearval, int tagval,
                         Real /*time*/, int /*n_error_buf*/, int /*ngrow*/)
 {
-    const auto problo = Geom().ProbLoArray();
-    const auto probhi = Geom().ProbHiArray();
+    //const auto problo = Geom().ProbLoArray();
+    //const auto probhi = Geom().ProbHiArray();
     const auto dx = Geom().CellSizeArray(); 
     auto const& S_new = get_new_data(State_Type);
     //const char tagval = TagBox::SET;
