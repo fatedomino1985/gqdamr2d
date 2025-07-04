@@ -69,7 +69,7 @@ Real AmrQGD::advance (Real time, Real dt, int /*iteration*/, int /*ncycle*/)
 	
 		int nc1_x, nc1_y, nc1_z;
 		amrex::Box box = S_new.boxArray()[0];
-		nc1_x = box.length(0), nc1_y = box.length(1), nc1_z = 1;//box.length(2);
+		nc1_x = box.length(0), nc1_y = box.length(1), nc1_z = 2;//box.length(2);
 		int nc_x = nc1_x-1, nc_y = nc1_y-1, nc_z = nc1_z-1;
 	
     //%% Time step
