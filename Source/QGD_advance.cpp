@@ -209,10 +209,10 @@ Real AmrQGD::advance (Real time, Real dt, int /*iteration*/, int /*ncycle*/)
 		double h;
 		//double adE_in;
 		
-		
+		if ((i > -2 && j > -2 && k > -1) && (i < nc_x && j < nc_y && k < nc_z))
+		{
 		//%%  X fluxes
-		//if (i > -1 && j > -2 && k > -1)
-		if ((i > -1 && j > -2 && k > -1) && (i < nc_x && j < nc_y && k < nc_z))
+		if (j > -1)
 		{
 			hy4 = 4*dx[1];//hy[j + 1] + 2.0 * hy_j + hy[j - 1]; //% 4 * hy_j;
 		
@@ -305,8 +305,7 @@ Real AmrQGD::advance (Real time, Real dt, int /*iteration*/, int /*ncycle*/)
 			VNew[bi](i+1,j,k,iE) = VNew[bi](i+1,j,k,iE) + FEx * hy;
 		}
 		//%%  Y fluxes
-		//if (i > -1 && j > -1 && k > -1)
-		if ((i > -1 && j > -2 && k > -1) && (i < nc_x && j < nc_y && k < nc_z))
+		if (i > -1)
 		{
 			hx4 = 4*dx[0];//hx[i + 1] + 2.0 * hx_i + hx[i - 1];
 			
@@ -393,6 +392,8 @@ Real AmrQGD::advance (Real time, Real dt, int /*iteration*/, int /*ncycle*/)
 			VNew[bi](i,j+1,k,iuy) = VNew[bi](i,j+1,k,iuy) + Fuyy * hx;
 			VNew[bi](i,j,k,iE) = VNew[bi](i,j,k,iE) - FEy * hx;
 			VNew[bi](i,j+1,k,iE) = VNew[bi](i,j+1,k,iE) + FEy * hx;
+		}
+		
 		}
 		
 		// New variables. Saved
